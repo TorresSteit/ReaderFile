@@ -1,0 +1,25 @@
+# CMake build directory
+build/
+cmake-build-*/
+
+# Compiled binaries
+*.o
+*.obj
+*.exe
+*.out
+file_analyzer
+
+
+# CLion / IDE files
+.idea/
+*.iml
+
+# Environment secrets — НЕ коммитим .env с реальными путями/секретами
+.env
+
+# Docker
+image.tar
+
+# SonarQube local cache
+.sonar/
+

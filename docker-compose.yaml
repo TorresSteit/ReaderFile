@@ -1,0 +1,10 @@
+services:
+  file-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: file-analyzer
+    env_file:
+      - .env
+    volumes:
+      - /mnt/c/Users/taras:/data:ro

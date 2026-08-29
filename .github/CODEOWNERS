@@ -1,0 +1,9 @@
+
+
+
+# CI/CD и инфраструктура
+.github/workflows/                              @TorresSteit
+Dockerfile                                      @TorresSteit
+compose*.yml                                    @TorresSteit
+Jenkinsfile                                     @TorresSteit
+
