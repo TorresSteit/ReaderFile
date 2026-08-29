@@ -16,6 +16,7 @@ file_analyzer
 
 # Environment secrets — НЕ коммитим .env с реальными путями/секретами
 .env
+
 !.env.example
 
 # Docker
