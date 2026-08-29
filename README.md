@@ -86,7 +86,7 @@ On every push to `master`, the GitHub Actions pipeline:
 3. Runs a smoke test
 4. Builds the Docker image
 
-A separate `.gitlab-ci.yml` demonstrates a more security-focused pipeline: Gitleaks (secret scanning), SonarQube (static code analysis), and Trivy (container vulnerability scanning).
+
 
 ## Why this project
 
