@@ -1,4 +1,4 @@
-# File Analyzer
+# ReaderFile
 
 A C++ command-line utility that scans a directory and reports statistics for every file it finds — size, line count, word count, and character count. Built as a hands-on demo of a full DevOps pipeline: compilation with CMake, containerization with Docker (multi-stage build), orchestration with Docker Compose, and CI/CD with GitHub Actions.
 
