@@ -11,7 +11,7 @@ COPY src/ ./src/
 
 # В образе gcc нет cmake по умолчанию — ставим отдельно
 # rm -rf /var/lib/apt/lists/* чистит кэш apt, чтобы не раздувать слой образа
-RUN apt-get update && apt-get install -y cmake && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends cmake=3.25.1-1 && rm -rf /var/lib/apt/lists/*
 
 # Конфигурируем проект (создаём build/) и собираем бинарник
 # Имя бинарника берётся из add_executable(<имя> ...) в CMakeLists.txt
