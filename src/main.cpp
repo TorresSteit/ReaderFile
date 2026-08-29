@@ -1,9 +1,8 @@
-#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <filesystem>
 #include <cstdlib>
-#include <iomanip>
+#include <fmt/core.h>
 
 namespace fs = std::filesystem;
 
@@ -45,26 +44,21 @@ FileStats analyzeFile(const fs::path& path) {
     return stats;
 }
 
-// Печатает результат по одному файлу в аккуратной таблице
+// Печатает результат по одному файлу в аккуратной таблице через fmt
 void printStats(const FileStats& s) {
-    std::cout << std::left << std::setw(25) << s.name
-              << " | ext: " << std::setw(10) << s.extension
-              << " | " << s.sizeBytes << " bytes"
-              << " | " << s.lines << " lines"
-              << " | " << s.words << " words"
-              << " | " << s.chars << " chars"
-              << std::endl;
+    fmt::print("{:<25} | ext: {:<10} | {} bytes | {} lines | {} words | {} chars\n",
+               s.name, s.extension, s.sizeBytes, s.lines, s.words, s.chars);
 }
 
 // Рекурсивно обходит директорию и анализирует каждый файл
 void scanDirectory(const fs::path& dirPath, bool recursive) {
     if (!fs::exists(dirPath) || !fs::is_directory(dirPath)) {
-        std::cout << "Not a valid directory: " << dirPath << std::endl;
+        fmt::print("Not a valid directory: {}\n", dirPath.string());
         return;
     }
 
-    std::cout << "Scanning: " << dirPath << std::endl;
-    std::cout << std::string(90, '-') << std::endl;
+    fmt::print("Scanning: {}\n", dirPath.string());
+    fmt::print("{:-<90}\n", "");
 
     size_t totalFiles = 0;
     uintmax_t totalBytes = 0;
@@ -88,8 +82,8 @@ void scanDirectory(const fs::path& dirPath, bool recursive) {
         }
     }
 
-    std::cout << std::string(90, '-') << std::endl;
-    std::cout << "Total: " << totalFiles << " files, " << totalBytes << " bytes" << std::endl;
+    fmt::print("{:-<90}\n", "");
+    fmt::print("Total: {} files, {} bytes\n", totalFiles, totalBytes);
 }
 
 int main(int argc, char* argv[]) {
