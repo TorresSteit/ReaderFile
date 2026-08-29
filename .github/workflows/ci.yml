@@ -23,11 +23,15 @@ jobs:
           key: ${{ runner.os }}-apt-cmake
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake
+        run: |
+          sudo apt-get update && sudo apt-get install -y cmake python3-pip
+          pip install --break-system-packages conan
+          conan profile detect
 
       - name: Configure and build
         run: |
-          cmake -B build -S .
+          conan install . --output-folder=build --build=missing -s build_type=Release
+          cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
           cmake --build build
 
       - name: Check binary exists
@@ -55,7 +59,7 @@ jobs:
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: Dockerfile
-          failure-threshold: error   # warning'и (DL3008 и т.п.) не блокируют пайплайн, только error
+          failure-threshold: error
 
   # ─────────────────────────────────────────────
   # JOB 3: Секреты в коде — не пускаем дальше, если найдены
@@ -70,6 +74,8 @@ jobs:
 
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ─────────────────────────────────────────────
   # JOB 4: Сборка и проверка Docker-образа
@@ -94,30 +100,13 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: '0'
 
-   
-
   # ═══════════════════════════════════════════════════════════
   # JOB 5: DEPLOY
-  # ═══════════════════════════════════════════════════════════
-  # RU: Публикуем собранный и проверенный Docker-образ в GitHub
-  #     Container Registry (ghcr.io). Финальный шаг — запускается
-  #     только после успешной сборки, линтинга, проверки секретов
-  #     и security-скана образа.
-  # EN: Publishes the built and verified Docker image to the
-  #     GitHub Container Registry (ghcr.io). The final stage —
-  #     runs only after build, lint, secret scanning, and the
-  #     image security scan have all succeeded.
   # ═══════════════════════════════════════════════════════════
   deploy:
     runs-on: ubuntu-latest
     needs: docker-build
-
-    # RU: Деплоим только из master — feature-ветки и PR не публикуют образы.
-    # EN: Deploy only from master — feature branches and PRs never publish images.
     if: github.ref == 'refs/heads/master'
-
-    # RU: Явно запрашиваем право на запись в GitHub Packages.
-    # EN: Explicitly request write access to GitHub Packages.
     permissions:
       contents: read
       packages: write
@@ -126,8 +115,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # RU: Авторизация в registry — GITHUB_TOKEN создаётся автоматически.
-      # EN: Registry authentication — GITHUB_TOKEN is generated automatically.
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -135,23 +122,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # RU: Собираем образ, тегируем хэшем коммита и latest.
-      # EN: Build the image, tag it with the commit SHA and latest.
       - name: Build and tag image
         run: |
-          IMAGE=ghcr.io/${{ github.repository_owner }}/file-analyzer
+          IMAGE=ghcr.io/$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')/file-analyzer
           docker build -t $IMAGE:${{ github.sha }} .
           docker tag $IMAGE:${{ github.sha }} $IMAGE:latest
 
-      # RU: Публикуем оба тега в registry.
-      # EN: Push both tags to the registry.
       - name: Push image to registry
         run: |
-          IMAGE=ghcr.io/${{ github.repository_owner }}/file-analyzer
+          IMAGE=ghcr.io/$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')/file-analyzer
           docker push $IMAGE:${{ github.sha }}
           docker push $IMAGE:latest
 
       - name: Deployment summary
         run: |
-          echo "✅ Deployed: ghcr.io/${{ github.repository_owner }}/file-analyzer:${{ github.sha }}"
-          echo "✅ Also tagged as: ghcr.io/${{ github.repository_owner }}/file-analyzer:latest"лько показываем находки (можно поставить '1' позже)
+          echo "✅ Deployed: ghcr.io/$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')/file-analyzer:${{ github.sha }}"
