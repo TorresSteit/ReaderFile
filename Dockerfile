@@ -51,6 +51,7 @@ RUN pip install --break-system-packages conan
 # архитектура, ОС, настройки стандарта C++) на основе текущего окружения.
 # Этот профиль нужен Conan, чтобы понять, как собрать или подобрать
 # нужные бинарные пакеты.
+
 RUN conan profile detect
 
 # Install project dependencies (fmt, per conanfile.txt) into the ./build
