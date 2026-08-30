@@ -1,6 +1,39 @@
+# [requires] section — lists the external libraries this project depends on.
+# fmt/10.2.1 — a fast, modern C++ string formatting library
+# (safer, more convenient alternative to printf/std::cout).
+# Conan will download a pre-built binary for this version if one exists
+# for the current compiler/platform, or build it from source otherwise.
+#
+# RU: Секция [requires] — список внешних библиотек, от которых зависит проект.
+# fmt/10.2.1 — быстрая современная библиотека форматирования строк
+# (более безопасная и удобная альтернатива printf/std::cout).
+# Conan скачает готовый бинарный пакет под текущий компилятор/платформу,
+# если он существует, иначе соберёт библиотеку из исходников.
 [requires]
 fmt/10.2.1
 
+# [generators] section — tells Conan which integration files to produce
+# so CMake can find and link the dependencies above.
+#
+# CMakeDeps   — generates <package>-config.cmake files, so find_package(fmt)
+#               in CMakeLists.txt can locate the library Conan installed.
+# CMakeToolchain — generates conan_toolchain.cmake, a file that configures
+#                  CMake with the correct compiler flags, C++ standard,
+#                  and settings to match what Conan used when building
+#                  the dependencies (must be passed to CMake via
+#                  -DCMAKE_TOOLCHAIN_FILE=...).
+#
+# RU: Секция [generators] — указывает Conan, какие интеграционные файлы
+# сгенерировать, чтобы CMake мог найти и подключить зависимости выше.
+#
+# CMakeDeps      — генерирует файлы <package>-config.cmake, чтобы
+#                  find_package(fmt) в CMakeLists.txt мог найти
+#                  библиотеку, установленную Conan.
+# CMakeToolchain — генерирует файл conan_toolchain.cmake, который
+#                  настраивает CMake с правильными флагами компилятора,
+#                  стандартом C++ и параметрами, совпадающими с теми,
+#                  что использовал Conan при сборке зависимостей
+#                  (передаётся в CMake через -DCMAKE_TOOLCHAIN_FILE=...).
 [generators]
 CMakeDeps
 CMakeToolchain
