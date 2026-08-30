@@ -35,5 +35,8 @@ fmt/10.2.1
 #                  что использовал Conan при сборке зависимостей
 #                  (передаётся в CMake через -DCMAKE_TOOLCHAIN_FILE=...).
 [generators]
+
+
+
 CMakeDeps
 CMakeToolchain

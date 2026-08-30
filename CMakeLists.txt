@@ -32,6 +32,8 @@ add_compile_options(-Wall -Wextra)
 # fmt — быстрая современная библиотека форматирования строк, более
 # безопасная и удобная альтернатива printf/std::cout.
 # REQUIRED означает, что сборка сразу упадёт, если fmt не найдена.
+
+
 find_package(fmt REQUIRED)
 
 # Define the executable target — compiles src/main.cpp into a binary

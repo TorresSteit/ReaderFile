@@ -287,6 +287,8 @@ jobs:
   # JOB 5: DEPLOY — publishes the verified image to ghcr.io
   # RU: JOB 5: DEPLOY — публикует проверенный образ в ghcr.io
   # ═══════════════════════════════════════════════════════════
+
+
   deploy:
     runs-on: ubuntu-latest
     needs: docker-build
