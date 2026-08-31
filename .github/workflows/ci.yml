@@ -1,167 +1,48 @@
-# Name of the workflow, shown in the GitHub Actions UI.
-# RU: Имя workflow, отображается в интерфейсе GitHub Actions.
 name: CI
 
-# Section defining what events trigger this workflow.
-# RU: Секция, определяющая, какие события запускают этот workflow.
 on:
-  # Run on every push to these branches.
-  # RU: Запускать при каждом push в эти ветки.
   push:
     branches: [ main, master ]
-  # Run on every pull request targeting these branches.
-  # RU: Запускать при каждом pull request, нацеленном на эти ветки.
   pull_request:
     branches: [ main, master ]
 
-# Section containing all the jobs (independent units of work) in this pipeline.
-# RU: Секция, содержащая все job'ы (независимые блоки работы) этого пайплайна.
 jobs:
-  # ─────────────────────────────────────────────
-  # JOB 1: Build and test the C++ project
-  # RU: JOB 1: Сборка и тестирование C++ проекта
-  # ─────────────────────────────────────────────
-  # Unique identifier for this job — referenced by other jobs via "needs".
-  # RU: Уникальный идентификатор этой job — на неё ссылаются другие job'ы через "needs".
   build-and-test:
-    # The type of virtual machine GitHub spins up to run this job.
-    # ubuntu-latest = most recent stable Ubuntu image GitHub maintains.
-    # RU: Тип виртуальной машины, которую GitHub поднимает для этой job.
-    # ubuntu-latest = самый свежий стабильный образ Ubuntu, который поддерживает GitHub.
     runs-on: ubuntu-latest
-    # The ordered list of commands/actions this job executes.
-    # RU: Упорядоченный список команд/actions, которые выполняет эта job.
     steps:
-      # A human-readable label for this step, shown in the Actions UI log.
-      # RU: Понятное название этого шага, отображается в логе интерфейса Actions.
       - name: Checkout code
-        # Uses a pre-built, reusable GitHub Action instead of a raw shell command.
-        # actions/checkout@v4 downloads the repository's code onto the runner.
-        # RU: Использует готовый, переиспользуемый GitHub Action вместо
-        # обычной shell-команды. actions/checkout@v4 скачивает код
-        # репозитория на раннер.
         uses: actions/checkout@v4
 
       - name: Cache apt packages
-        # actions/cache@v4 — official caching action, saves/restores files
-        # between workflow runs to speed things up.
-        # RU: actions/cache@v4 — официальный action для кэширования,
-        # сохраняет/восстанавливает файлы между запусками workflow для ускорения.
         uses: actions/cache@v4
-        # Additional configuration parameters passed to the action.
-        # RU: Дополнительные параметры конфигурации, передаваемые в action.
         with:
-          # Which local directory's contents to cache.
-          # RU: Содержимое какой локальной директории кэшировать.
           path: /var/cache/apt/archives
-          # The cache key — cache is reused only if this exact key matches
-          # a previous run; runner.os makes it OS-specific.
-          # RU: Ключ кэша — кэш переиспользуется, только если этот же
-          # ключ совпадает с предыдущим запуском; runner.os делает его
-          # специфичным для конкретной ОС.
           key: ${{ runner.os }}-apt-cmake
 
       - name: Install dependencies
-        # "run:" executes raw shell commands directly on the runner,
-        # as opposed to "uses:" which calls a packaged Action.
-        # The "|" (pipe) allows a multi-line shell script.
-        # RU: "run:" выполняет обычные shell-команды напрямую на раннере,
-        # в отличие от "uses:", который вызывает готовый Action.
-        # "|" (pipe) позволяет писать многострочный shell-скрипт.
         run: |
-          # Update the apt package index, then install cmake and pip
-          # (python3-pip) without an interactive confirmation prompt (-y).
-          # RU: Обновляем индекс пакетов apt, затем ставим cmake и pip
-          # (python3-pip) без интерактивного запроса подтверждения (-y).
           sudo apt-get update && sudo apt-get install -y cmake python3-pip
-          # Install Conan (C++ package manager) via pip.
-          # --break-system-packages bypasses Ubuntu's PEP 668 protection,
-          # which otherwise blocks direct pip installs into system Python.
-          # RU: Устанавливаем Conan (менеджер пакетов C++) через pip.
-          # --break-system-packages обходит защиту PEP 668 в Ubuntu,
-          # которая иначе блокирует прямую установку через pip
-          # в системный Python.
           pip install --break-system-packages conan
-          # Auto-generates a Conan "profile" — a file describing the
-          # compiler, OS, architecture, and C++ standard of this runner,
-          # so Conan knows what binaries to fetch/build.
-          # RU: Автоматически генерирует Conan-"профиль" — файл,
-          # описывающий компилятор, ОС, архитектуру и стандарт C++
-          # этого раннера, чтобы Conan знал, какие бинарники
-          # скачивать/собирать.
           conan profile detect
 
       - name: Configure and build
         run: |
-          # Installs the dependencies listed in conanfile.txt (fmt) into
-          # the ./build folder. --build=missing means: if no pre-built
-          # binary matches this exact platform/compiler, compile it from
-          # source instead of failing. -s build_type=Release selects the
-          # optimized, non-debug build configuration.
-          # RU: Устанавливает зависимости из conanfile.txt (fmt) в папку
-          # ./build. --build=missing означает: если нет готового бинарника
-          # под эту платформу/компилятор — собрать из исходников вместо
-          # падения с ошибкой. -s build_type=Release выбирает
-          # оптимизированную конфигурацию сборки (не отладочную).
           conan install . --output-folder=build --build=missing -s build_type=Release
-          # Generates the actual build files (Makefiles) into ./build.
-          # -B build = where to put generated build files.
-          # -S . = where the source CMakeLists.txt lives (project root).
-          # -DCMAKE_TOOLCHAIN_FILE=... = tells CMake to use the compiler
-          # settings Conan generated, so they match the installed dependencies.
-          # -DCMAKE_BUILD_TYPE=Release = must match the build_type used
-          # in the conan install command above.
-          # RU: Генерирует файлы сборки (Makefile) в ./build.
-          # -B build = куда положить сгенерированные файлы сборки.
-          # -S . = где лежит исходный CMakeLists.txt (корень проекта).
-          # -DCMAKE_TOOLCHAIN_FILE=... = говорит CMake использовать
-          # настройки компилятора, сгенерированные Conan, чтобы они
-          # совпадали с установленными зависимостями.
-          # -DCMAKE_BUILD_TYPE=Release = должен совпадать с build_type,
-          # использованным в команде conan install выше.
           cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
-          # Actually compiles the source code into a binary, using the
-          # build files generated by the previous command.
-          # RU: Непосредственно компилирует исходный код в бинарник,
-          # используя файлы сборки, сгенерированные предыдущей командой.
           cmake --build build
 
       - name: Check binary exists
-        # "test -f <path>" is a shell command that exits with code 0
-        # (success) if the file exists, or non-zero (failure) if it
-        # doesn't — this fails the whole step/job if the binary is missing.
-        # RU: "test -f <path>" — shell-команда, завершается с кодом 0
-        # (успех), если файл существует, или ненулевым кодом (ошибка),
-        # если нет — это завалит весь шаг/job, если бинарник отсутствует.
         run: test -f build/file_analyzer
 
       - name: Smoke test
-        # Runs the compiled binary once, passing "." (current directory)
-        # as the argument — a basic check that it starts and doesn't crash.
-        # RU: Запускает собранный бинарник один раз, передавая "."
-        # (текущую директорию) как аргумент — базовая проверка, что он
-        # стартует и не падает.
         run: ./build/file_analyzer .
 
       - name: Upload build artifact
-        # actions/upload-artifact@v4 — official action to save files
-        # from this job, downloadable from the workflow run summary page.
-        # RU: actions/upload-artifact@v4 — официальный action для
-        # сохранения файлов из этой job, доступных для скачивания
-        # со страницы сводки прогона workflow.
         uses: actions/upload-artifact@v4
         with:
-          # The name shown for this artifact in the GitHub UI.
-          # RU: Имя, под которым артефакт отображается в интерфейсе GitHub.
           name: file_analyzer-binary
-          # Which local file/folder to upload.
-          # RU: Какой локальный файл/папку загружать.
           path: build/file_analyzer
 
-  # ─────────────────────────────────────────────
-  # JOB 2: Lint the Dockerfile against best practices
-  # RU: JOB 2: Линтинг Dockerfile — проверка best practices
-  # ─────────────────────────────────────────────
   lint-dockerfile:
     runs-on: ubuntu-latest
     steps:
@@ -169,144 +50,48 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Lint Dockerfile
-        # hadolint/hadolint-action — a third-party Action that runs the
-        # hadolint static analysis tool against a Dockerfile.
-        # RU: hadolint/hadolint-action — сторонний Action, который
-        # запускает статический анализатор hadolint для Dockerfile.
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          # Which file to lint.
-          # RU: Какой файл проверять.
           dockerfile: Dockerfile
-          # Only findings at "error" severity or above fail this step;
-          # lower-severity "warning"/"info" findings are reported but ignored.
-          # RU: Только находки уровня "error" и выше заваливают этот шаг;
-          # находки уровня "warning"/"info" показываются, но не блокируют.
           failure-threshold: error
 
-  # ─────────────────────────────────────────────
-  # JOB 3: Scan for secrets accidentally committed to the repo
-  # RU: JOB 3: Проверка на секреты, случайно закоммиченные в репозиторий
-  # ─────────────────────────────────────────────
   gitleaks:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # 0 means "fetch the entire git history", not just the latest
-          # commit (which is the default, shallow checkout). Gitleaks
-          # needs full history to scan every past commit for secrets.
-          # RU: 0 означает "скачать всю историю git", а не только
-          # последний коммит (это поведение по умолчанию — неглубокий
-          # checkout). Gitleaks нужна полная история, чтобы просканировать
-          # каждый прошлый коммит на секреты.
           fetch-depth: 0
 
       - name: Run Gitleaks
-        # gitleaks/gitleaks-action — official Action wrapping the
-        # Gitleaks secret-scanning tool.
-        # RU: gitleaks/gitleaks-action — официальный Action-обёртка над
-        # инструментом Gitleaks для поиска секретов.
         uses: gitleaks/gitleaks-action@v2
-        # Environment variables passed specifically to this step's process.
-        # RU: Переменные окружения, передаваемые конкретно процессу этого шага.
         env:
-          # secrets.GITHUB_TOKEN is an automatically generated token,
-          # unique per workflow run, used here to authenticate against
-          # the GitHub API (required especially for pull_request events).
-          # RU: secrets.GITHUB_TOKEN — автоматически создаваемый токен,
-          # уникальный для каждого запуска workflow, используется здесь
-          # для авторизации в GitHub API (требуется особенно для
-          # событий pull_request).
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ─────────────────────────────────────────────
-  # JOB 4: Build and verify the Docker image
-  # RU: JOB 4: Сборка и проверка Docker-образа
-  # ─────────────────────────────────────────────
   docker-build:
     runs-on: ubuntu-latest
-    # "needs" makes this job wait until all listed jobs finish
-    # successfully before it starts running.
-    # RU: "needs" заставляет эту job ждать успешного завершения всех
-    # перечисленных job перед своим запуском.
     needs: [ build-and-test, lint-dockerfile, gitleaks ]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Build Docker image
-        # Builds a Docker image from the Dockerfile in the current
-        # directory (".") and tags it with the current commit's SHA hash,
-        # via the built-in github.sha context variable.
-        # RU: Собирает Docker-образ из Dockerfile в текущей директории
-        # (".") и тегирует его хэшем текущего коммита через встроенную
-        # контекстную переменную github.sha.
         run: docker build -t file-analyzer:${{ github.sha }} .
 
       - name: Smoke test Docker image
-        # Runs a container from the just-built image. --rm automatically
-        # deletes the container after it exits (no leftover clutter).
-        # "|| true" makes this step always succeed regardless of the
-        # container's exit code, since a non-zero exit here (e.g. no
-        # directory to scan yet) isn't a build failure.
-        # RU: Запускает контейнер из только что собранного образа.
-        # --rm автоматически удаляет контейнер после завершения (не
-        # копится мусор). "|| true" делает так, что этот шаг всегда
-        # завершается успешно независимо от кода выхода контейнера,
-        # так как ненулевой код здесь (например, нет директории для
-        # сканирования) — не является ошибкой сборки.
         run: docker run --rm file-analyzer:${{ github.sha }} . || true
 
       - name: Scan image with Trivy
-        # aquasecurity/trivy-action — official Action wrapping the Trivy
-        # vulnerability scanner for container images.
-        # RU: aquasecurity/trivy-action — официальный Action-обёртка над
-        # сканером уязвимостей Trivy для контейнерных образов.
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          # Which image (and tag) to scan.
-          # RU: Какой образ (и тег) сканировать.
           image-ref: file-analyzer:${{ github.sha }}
-          # Only report vulnerabilities at these severity levels — filters
-          # out low-impact/noise findings.
-          # RU: Показывать уязвимости только этих уровней серьёзности —
-          # отфильтровывает малозначимые/шумные находки.
           severity: CRITICAL,HIGH
-          # '0' means Trivy always exits successfully regardless of
-          # findings — the pipeline won't fail even if vulnerabilities
-          # are found (can be changed to '1' to enforce blocking later).
-          # RU: '0' означает, что Trivy всегда завершается успешно,
-          # независимо от находок — пайплайн не упадёт, даже если
-          # найдены уязвимости (можно поменять на '1', чтобы блокировать
-          # пайплайн позже).
           exit-code: '0'
-
-  # ═══════════════════════════════════════════════════════════
-  # JOB 5: DEPLOY — publishes the verified image to ghcr.io
-  # RU: JOB 5: DEPLOY — публикует проверенный образ в ghcr.io
-  # ═══════════════════════════════════════════════════════════
-
 
   deploy:
     runs-on: ubuntu-latest
     needs: docker-build
-
-    # A conditional expression — this job only executes if the condition
-    # is true. github.ref is the branch/tag reference that triggered
-    # this run; here it restricts deployment to pushes on master only.
-    # RU: Условное выражение — эта job выполняется только если условие
-    # истинно. github.ref — ссылка на ветку/тег, вызвавшую этот прогон;
-    # здесь ограничивает деплой только пушами в master.
     if: github.ref == 'refs/heads/master'
-
-    # Explicitly grants this job's GITHUB_TOKEN specific permission
-    # scopes. By default, tokens may have limited or read-only access;
-    # "packages: write" is required to push images to ghcr.io.
-    # RU: Явно выдаёт GITHUB_TOKEN этой job конкретные права доступа.
-    # По умолчанию токены могут иметь ограниченный или read-only
-    # доступ; "packages: write" необходим для пуша образов в ghcr.io.
     permissions:
       contents: read
       packages: write
@@ -316,61 +101,24 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Log in to GitHub Container Registry
-        # docker/login-action — official Action to authenticate the
-        # Docker CLI against a container registry.
-        # RU: docker/login-action — официальный Action для авторизации
-        # Docker CLI в container registry.
         uses: docker/login-action@v3
         with:
-          # The registry hostname to log into.
-          # RU: Хост registry, в который выполняется вход.
           registry: ghcr.io
-          # github.actor is the username of whoever triggered this
-          # workflow run (e.g. via a push).
-          # RU: github.actor — имя пользователя, который вызвал этот
-          # прогон workflow (например, через push).
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and tag image
         run: |
-          # Constructs the full image name. echo pipes the repository
-          # owner's name (which may contain uppercase letters) through
-          # "tr" to convert it entirely to lowercase, because ghcr.io
-          # rejects uppercase characters in image names.
-          # RU: Собирает полное имя образа. echo передаёт имя владельца
-          # репозитория (которое может содержать заглавные буквы) через
-          # "tr", чтобы полностью привести его к нижнему регистру, так
-          # как ghcr.io не принимает заглавные буквы в именах образов.
           IMAGE=ghcr.io/$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')/file-analyzer
-          # Rebuilds the image (this job runs in a fresh, separate
-          # runner instance from docker-build, so nothing is cached
-          # between them — the image must be built again here).
-          # RU: Пересобирает образ (эта job выполняется на новом,
-          # отдельном инстансе раннера, отличном от docker-build,
-          # поэтому между ними ничего не кэшируется — образ нужно
-          # собрать заново здесь).
           docker build -t $IMAGE:${{ github.sha }} .
-          # Adds a second tag ("latest") pointing to the exact same
-          # image, without rebuilding it.
-          # RU: Добавляет второй тег ("latest"), указывающий на тот же
-          # самый образ, без пересборки.
           docker tag $IMAGE:${{ github.sha }} $IMAGE:latest
 
       - name: Push image to registry
         run: |
           IMAGE=ghcr.io/$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')/file-analyzer
-          # Uploads the commit-SHA-tagged image to the registry.
-          # RU: Загружает в registry образ, тегированный хэшем коммита.
           docker push $IMAGE:${{ github.sha }}
-          # Uploads the "latest" tag as well.
-          # RU: Также загружает тег "latest".
           docker push $IMAGE:latest
 
       - name: Deployment summary
         run: |
-          # Prints a confirmation line to the step's log output, showing
-          # exactly where the image was published.
-          # RU: Печатает строку подтверждения в лог этого шага,
-          # показывающую, куда именно был опубликован образ.
           echo "✅ Deployed: ghcr.io/$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')/file-analyzer:${{ github.sha }}"
