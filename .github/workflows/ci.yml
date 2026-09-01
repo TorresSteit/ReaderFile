@@ -1,48 +1,62 @@
-name: CI
-
-on:
+name: CI                                    # Название пайплайна, отображается в GitHub Actions UI
+on:                                          # Триггеры — когда запускается пайплайн
   push:
-    branches: [ main, master ]
+    branches: [ main, master ]               # Запускается при пуше в main или master
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master ]               # И при создании/обновлении PR в эти ветки
 
-jobs:
+jobs:                                        # Список независимых job'ов (блоков работы)
+
+  # ============================================================
+  # JOB 1: build-and-test — собирает и тестирует C++ проект
+  # ============================================================
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest                   # Виртуалка Ubuntu, которую поднимает GitHub для этой job
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4            # Скачивает код репозитория на раннер (без этого шага нечего собирать)
 
       - name: Cache apt packages
         uses: actions/cache@v4
         with:
-          path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-cmake
+          path: /var/cache/apt/archives       # Кэшируем скачанные .deb-пакеты apt
+          key: ${{ runner.os }}-apt-cmake      # Ключ кэша — чтобы не качать пакеты заново каждый прогон
 
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y cmake python3-pip
+          # ^ Ставим cmake (сборка C++) и pip (менеджер пакетов Python)
           pip install --break-system-packages conan
+          # ^ Ставим Conan — пакетный менеджер для C++ зависимостей
           conan profile detect
+          # ^ Conan сам определяет компилятор/ОС и создаёт дефолтный build-профиль
 
       - name: Configure and build
         run: |
           conan install . --output-folder=build --build=missing -s build_type=Release
+          # ^ Conan скачивает/собирает зависимости C++ проекта в папку build (Release-сборка)
           cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+          # ^ CMake генерирует файлы сборки, используя toolchain от Conan (чтобы найти его зависимости)
           cmake --build build
+          # ^ Компилируем проект
 
       - name: Check binary exists
         run: test -f build/file_analyzer
+        # ^ Проверка: реально ли собрался бинарник file_analyzer (если нет — job упадёт)
 
       - name: Smoke test
         run: ./build/file_analyzer .
+        # ^ "Дымовой тест" — запускаем бинарник, проверяем, что он хотя бы не падает сразу
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: file_analyzer-binary
-          path: build/file_analyzer
+          name: file_analyzer-binary          # Имя артефакта в GitHub Actions
+          path: build/file_analyzer            # Что именно сохраняем (можно скачать после прогона)
 
+  # ============================================================
+  # JOB 2: lint-dockerfile — проверка качества Dockerfile
+  # ============================================================
   lint-dockerfile:
     runs-on: ubuntu-latest
     steps:
@@ -50,51 +64,65 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Lint Dockerfile
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.1.0  # Hadolint — линтер для Dockerfile (плохие практики, best practices)
         with:
           dockerfile: Dockerfile
-          failure-threshold: error
+          failure-threshold: error             # Падаем только на реальных ошибках, warning'и не блокируют
 
+  # ============================================================
+  # JOB 3: gitleaks — поиск случайно закоммиченных секретов
+  # ============================================================
   gitleaks:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
+          fetch-depth: 0                       # Полная история git (не только последний коммит) — иначе gitleaks
+                                                # не увидит секреты, закоммиченные раньше
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v2       # Сканирует историю на пароли/токены/ключи
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Токен нужен экшену для доступа к репозиторию
 
+  # ============================================================
+  # JOB 4: docker-build — сборка образа + сканирование
+  # ============================================================
   docker-build:
     runs-on: ubuntu-latest
     needs: [ build-and-test, lint-dockerfile, gitleaks ]
+    # ^ Эта job стартует, ТОЛЬКО если все три предыдущие job'ы прошли успешно
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Build Docker image
         run: docker build -t file-analyzer:${{ github.sha }} .
+        # ^ Собираем образ, тег = SHA текущего коммита (уникальный тег на каждый прогон)
 
       - name: Smoke test Docker image
         run: docker run --rm file-analyzer:${{ github.sha }} . || true
+        # ^ Запускаем контейнер разово; "|| true" — не роняем пайплайн, даже если контейнер
+        #   завершится с ошибкой (мягкая проверка, не строгий тест)
 
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0  # Сканер уязвимостей (CVE) в образе
         with:
           image-ref: file-analyzer:${{ github.sha }}
-          severity: CRITICAL,HIGH
-          exit-code: '0'
+          severity: CRITICAL,HIGH               # Ищем только критичные/высокие уязвимости
+          exit-code: '0'                         # Не роняем пайплайн при находках — просто репортим в лог
 
+  # ============================================================
+  # JOB 5: deploy — публикация образа в registry (только master)
+  # ============================================================
   deploy:
     runs-on: ubuntu-latest
-    needs: docker-build
-    if: github.ref == 'refs/heads/master'
+    needs: docker-build                          # Стартует только после успешного docker-build
+    if: github.ref == 'refs/heads/master'         # И только если пуш был именно в ветку master (не в PR/main)
     permissions:
       contents: read
-      packages: write
+      packages: write                             # Нужны права на запись в GitHub Packages (registry)
 
     steps:
       - name: Checkout code
@@ -103,22 +131,27 @@ jobs:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io                       # GitHub Container Registry
+          username: ${{ github.actor }}            # Логин = тот, кто запустил пайплайн
+          password: ${{ secrets.GITHUB_TOKEN }}    # Встроенный токен GitHub Actions, пароль не нужен вручную
 
       - name: Build and tag image
         run: |
           IMAGE=ghcr.io/$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')/file-analyzer
+          # ^ Собираем полное имя образа; tr переводит имя владельца в нижний регистр
+          #   (Docker не разрешает заглавные буквы в именах образов)
           docker build -t $IMAGE:${{ github.sha }} .
+          # ^ Собираем образ с тегом = SHA коммита
           docker tag $IMAGE:${{ github.sha }} $IMAGE:latest
+          # ^ Дополнительно ставим тег latest на тот же образ
 
       - name: Push image to registry
         run: |
           IMAGE=ghcr.io/$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')/file-analyzer
-          docker push $IMAGE:${{ github.sha }}
-          docker push $IMAGE:latest
+          docker push $IMAGE:${{ github.sha }}     # Пушим версию с конкретным SHA
+          docker push $IMAGE:latest                # И пушим latest
 
       - name: Deployment summary
         run: |
           echo "✅ Deployed: ghcr.io/$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')/file-analyzer:${{ github.sha }}"
+          # ^ Просто печатает в лог финальное сообщение, куда всё задеплоилось
