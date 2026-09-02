@@ -52,3 +52,24 @@ add_executable(file_analyzer src/main.cpp)
 # (здесь не критично, так как это исполняемый файл, а не библиотека,
 # но это хорошая практика).
 target_link_libraries(file_analyzer PRIVATE fmt::fmt)
+
+# Link the fmt library to our executable.
+# PRIVATE means fmt is only used internally by this target, not exposed
+# to anything that might depend on file_analyzer (irrelevant here since
+# this is an executable, not a library, but it's good practice).
+# RU: Подключаем библиотеку fmt к нашему исполняемому файлу.
+# PRIVATE означает, что fmt используется только внутри этого таргета,
+# не "пробрасывается" наружу тем, кто мог бы зависеть от file_analyzer
+# (здесь не критично, так как это исполняемый файл, а не библиотека,
+# но это хорошая практика).
+target_link_libraries(file_analyzer PRIVATE fmt::fmt)
+
+# Statically link libstdc++ and libgcc into the binary, so it doesn't
+# depend on the version of these libraries installed in the runtime
+# environment (important for Docker multi-stage builds, where the
+# build image has a newer libstdc++ than the slim runtime image).
+# RU: Статически линкуем libstdc++ и libgcc прямо в бинарник, чтобы он
+# не зависел от версии этих библиотек в рантайм-окружении (важно для
+# мультистейдж Docker-сборок, где в build-образе libstdc++ новее, чем
+# в лёгком runtime-образе).
+target_link_options(file_analyzer PRIVATE -static-libstdc++ -static-libgcc)
